@@ -91,7 +91,7 @@ buzzer = pygame.mixer.Sound("buzzer.wav")
 # Background music
 bg_music = pygame.mixer.Sound("background.wav")
 music_channel = pygame.mixer.Channel(0)
-music_channel.play(bg_music, loops=-1)
+#music_channel.play(bg_music, loops=-1)
 
 # --- Stage runner ---
 
@@ -207,6 +207,8 @@ def run_stages():
 # --- Main controller ---
 while True:
     wait_for_keyboard()
+    # Fade in background music when keyboard appears
+    music_channel.play(bg_music, loops=-1, fade_ms=2000)  # 2 sec fade in
     try:
         run_stages()
         print("Game finished!")
@@ -214,6 +216,7 @@ while True:
     except RuntimeError as e:
         if str(e) == "KeyboardDisconnected":
             print("Keyboard disconnected! Restarting from stage 1...")
+            music_channel.fadeout(2000)
             continue
         else:
             raise
