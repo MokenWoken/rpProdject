@@ -7,7 +7,7 @@
       "b": ["wrongB1.wav", "wrongB2.wav"],
       "c": ["wrongB3.wav"]
     },
-    "fail_default": ["wrongB1", "wrongB1"]
+    "fail_default": ["wrongB1"]
   },
   {
     "prompt": ["question.wav"],
