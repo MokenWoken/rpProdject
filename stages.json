@@ -10,12 +10,12 @@
     "fail_default": ["wrongB1"]
   },
   {
-    "prompt": ["question.wav"],
+    "prompt": ["beep.wav"],
     "correct": "b",
-    "success": ["success.wav"],
+    "success": ["beep.wav"],
     "fail": {
-      "a": ["fail_a1.wav"]
+      "a": ["beep.wav"]
     },
-    "fail_default": ["oops1.wav", "oops2.wav"]
+    "fail_default": ["beep"]
   }
 ]
