@@ -27,7 +27,7 @@ or
 "correct": ["a"," "]
 
 
-
+JSON TEMPLATE
 [
   {
     "id": "stage1",
