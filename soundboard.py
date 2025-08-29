@@ -1,4 +1,4 @@
-import pygame, sys, termios, tty, random, json, time, atexit
+import pygame, sys, termios, tty, random, json, time, atexit, select
 from evdev import InputDevice, list_devices
 
 # Init mixer (tuned for Pi 1)
@@ -40,19 +40,31 @@ def play(sound_or_list):
         while ch.get_busy():
             pygame.time.delay(10)
 
-def getch():
-    """Capture one raw key press without terminal echo."""
+def getch_nonblocking():
+    """Get a character if available, return None if no input available."""
     # Make sure terminal is in raw mode
     setup_terminal()
     
-    # Read one character
+    # Check if input is available
+    if select.select([sys.stdin], [], [], 0) == ([], [], []):
+        return None  # No input available
+    
     try:
         ch = sys.stdin.read(1)
-        print(f"DEBUG: getch() captured: '{ch}' (ord: {ord(ch)})")
+        print(f"DEBUG: getch_nonblocking() captured: '{ch}' (ord: {ord(ch)})")
         return ch
     except KeyboardInterrupt:
-        print("DEBUG: KeyboardInterrupt in getch()")
+        print("DEBUG: KeyboardInterrupt in getch_nonblocking()")
         raise
+
+def wait_for_keypress():
+    """Wait for a keypress, checking constantly even while sounds play."""
+    print("DEBUG: Waiting for keypress (non-blocking)...")
+    while True:
+        key = getch_nonblocking()
+        if key is not None:
+            return key.lower()
+        pygame.time.delay(10)  # Small delay to prevent busy waiting
 
 def load_sound_list(filenames):
     """Load .wav files into pygame Sound objects."""
@@ -171,7 +183,7 @@ def run_stages():
                     raise RuntimeError("KeyboardDisconnected")
                 
                 print(f"DEBUG: Waiting for key {seq_index+1}/{len(sequence)}")
-                key = getch().lower()
+                key = wait_for_keypress()
                 play_keypress_sound(key)
                 
                 if key == sequence[seq_index]:
@@ -199,7 +211,7 @@ def run_stages():
                     raise RuntimeError("KeyboardDisconnected")
 
                 print("DEBUG: Waiting for keypress...")
-                key = getch().lower()
+                key = wait_for_keypress()
                 play_keypress_sound(key)
                 
                 correct_keys = correct_def
@@ -240,7 +252,7 @@ def run_stages():
                     if str(fail_count) in fb:
                         branch_def = fb[str(fail_count)]
                         print("Special branch triggered. Waiting for input...")
-                        branch_key = getch().lower()
+                        branch_key = wait_for_keypress()
                         if branch_key in branch_def["keys"]:
                             next_stage_id = branch_def["keys"][branch_key]
                             break
