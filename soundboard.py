@@ -99,7 +99,7 @@ def run_stages():
         correct_def = stage["correct"]
 
         # --- Case: sequence of keys ---
-        if isinstance(correct_def, list) and len(correct_def) > 0 and isinstance(correct_def[0], list]:
+        if isinstance(correct_def, list) and len(correct_def) > 0 and isinstance(correct_def[0], list):
             sequence = [k.lower() for k in correct_def[0]]
             seq_index = 0
             while seq_index < len(sequence):
