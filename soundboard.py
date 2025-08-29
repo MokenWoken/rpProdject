@@ -106,8 +106,7 @@ keypress_sounds = {
 }
 keypress_fallback = load_sound_list(kp_data.get("keypress_fallback", []))
 
-# Reserve a dedicated channel
-keypress_sounds_channel = pygame.mixer.Channel(2)
+
 def play_keypress_sound(key):
     """Play a random sound for this key on the keypress channel."""
     if key in keypress_sounds:
