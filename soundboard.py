@@ -54,7 +54,29 @@ def grab_all_keyboards():
                     main_keyboard = dev
                     print(f"  -> Using as main input device")
                 
-        except PermissionError as e
+        except PermissionError as e:
+            print(f"  -> Permission denied: {e}")
+            print(f"     Try running as root: sudo python3 {sys.argv[0]}")
+            continue
+        except Exception as e:
+            print(f"  -> Error with {dev.name}: {e}")
+            continue
+    
+    return main_keyboard
+
+def open_keyboard():
+    """Wrapper to maintain compatibility with existing code."""
+    return grab_all_keyboards()
+
+def release_keyboard(dev):
+    """Release all grabbed keyboards."""
+    global grabbed_devices
+    for device in grabbed_devices:
+        try:
+            device.ungrab()
+        except Exception:
+            pass
+    grabbed_devices = []
 
 def release_keyboard(dev):
     try:
