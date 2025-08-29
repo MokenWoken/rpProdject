@@ -1,13 +1,13 @@
 [
   {
-    "prompt": ["beep.wav"],
+    "prompt": ["welcomePressB.wav"],
     "correct": ["a", " ", "a"], 
-    "success": ["sheepbleat.wav", "goatbleat.wav"],
+    "success": ["successB.wav"],
     "fail": {
-      "b": ["wrong_b1.wav", "wrong_b2.wav"],
-      "c": ["wrong_c1.wav"]
+      "b": ["wrongB1.wav", "wrongB2.wav"],
+      "c": ["wrongB3.wav"]
     },
-    "fail_default": ["generic_fail1.wav", "generic_fail2.wav"]
+    "fail_default": ["wrongB1", "wrongB1"]
   },
   {
     "prompt": ["question.wav"],
