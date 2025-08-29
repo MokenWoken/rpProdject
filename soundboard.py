@@ -1,9 +1,12 @@
 import pygame
+
 import sys
 import termios
 import tty
 
 # Init pygame mixer
+pygame.mixer.pre_init(44100, -16, 2, 1024)  # (freq, size, channels, buffer)
+pygame.init()
 pygame.mixer.init()
 
 # Load sounds
