@@ -33,12 +33,18 @@ def load_sound_list(filenames):
 
 # --- Keyboard detection ---
 
+from evdev import ecodes
+
 def keyboard_connected():
-    """Return True if any keyboard is connected."""
+    """Return True if any device with keyboard capabilities is connected."""
     devices = [InputDevice(path) for path in list_devices()]
     for dev in devices:
-        if "keyboard" in dev.name.lower():
-            return True
+        try:
+            caps = dev.capabilities()
+            if ecodes.EV_KEY in caps:  # has key events
+                return True
+        except Exception:
+            continue
     return False
 
 def wait_for_keyboard():
