@@ -38,7 +38,7 @@ stages = []
 for s in stages_data:
     stage = {
         "prompt": load_sound_list(s["prompt"]),
-        "correct": s["correct"].lower(),
+        "correct": s["correct"],  # may be string or list
         "success": load_sound_list(s["success"]),
         "fail": {k.lower(): load_sound_list(v) for k, v in s.get("fail", {}).items()},
         "fail_default": load_sound_list(s.get("fail_default", []))
@@ -62,15 +62,17 @@ for stage in stages:
     while True:
         key = getch().lower()
 
+        # Normalize correct keys to a list
         correct_keys = stage["correct"]
-if isinstance(correct_keys, str):
-    correct_keys = [correct_keys]   # make single values into a list
+        if isinstance(correct_keys, str):
+            correct_keys = [correct_keys]
+        correct_keys = [ck.lower() for ck in correct_keys]
 
-if key in correct_keys:
-    play(beep)
-    play(stage["success"])
-    print("Correct!")
-    break
+        if key in correct_keys:
+            play(beep)
+            play(stage["success"])
+            print("Correct!")
+            break
 
         elif key in stage["fail"]:
             play(buzzer)
@@ -97,6 +99,6 @@ if key in correct_keys:
             print(f"Unexpected key '{key}', fallback fail triggered.")
 
         else:
-            # If no fallback provided, just beep+buzzer
+            # If no fallback provided, just play buzzer
             play(buzzer)
             print(f"Unexpected key '{key}', no fail sounds defined.")
