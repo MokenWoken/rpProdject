@@ -5,8 +5,8 @@ import keyboard  # requires: pip install keyboard
 pygame.mixer.init()
 
 # load sounds
-sound_a = pygame.mixer.Sound("sound_a.wav")
-sound_b = pygame.mixer.Sound("sound_b.wav")
+sound_a = pygame.mixer.Sound("beep.wav")
+sound_b = pygame.mixer.Sound("sheepbleat.wav")
 
 print("Press A or B to play sounds. Press ESC to quit.")
 
