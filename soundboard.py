@@ -7,8 +7,8 @@ import tty
 pygame.mixer.init()
 
 # Load sounds
-sound_a = pygame.mixer.Sound("sound_a.wav")
-sound_b = pygame.mixer.Sound("sound_b.wav")
+sound_a = pygame.mixer.Sound("beep.wav")
+sound_b = pygame.mixer.Sound("sheepbleat.wav")
 
 # Function to capture single key presses
 def getch():
