@@ -1,0 +1,14 @@
+[
+  {
+    "prompt": ["beep.wav", "beep2.wav"],
+    "correct": "a",
+    "success": ["sheepbleat.wav", "goatbleat.wav"],
+    "fail": ["buzzer.wav", "wrong.wav"]
+  },
+  {
+    "prompt": ["question.wav"],
+    "correct": "b",
+    "success": ["success.wav"],
+    "fail": ["error.wav"]
+  }
+]
