@@ -36,12 +36,14 @@ with open("stages.json", "r") as f:
 
 stages = []
 for s in stages_data:
-    stages.append({
+    stage = {
         "prompt": load_sound_list(s["prompt"]),
         "correct": s["correct"].lower(),
         "success": load_sound_list(s["success"]),
-        "fail": load_sound_list(s["fail"])
-    })
+        "fail": {k.lower(): load_sound_list(v) for k, v in s.get("fail", {}).items()},
+        "fail_default": load_sound_list(s.get("fail_default", []))
+    }
+    stages.append(stage)
 
 # Load global feedback sounds
 beep = pygame.mixer.Sound("beep.wav")
@@ -51,19 +53,46 @@ print("Game starting...")
 
 # --- Stage loop ---
 for stage in stages:
-    # Play the prompt ONCE at the start of the stage
-    play(stage["prompt"])
+    play(stage["prompt"])  # play prompt once
+
+    # Keep counters for fail sequences
+    fail_counters = {k: 0 for k in stage["fail"]}
+    default_fail_counter = 0
 
     while True:
         key = getch().lower()
 
         if key == stage["correct"]:
-            play(beep)                  # universal feedback
-            play(stage["success"])      # JSON success sound(s)
+            play(beep)
+            play(stage["success"])   # random success
             print("Correct!")
-            break  # advance to next stage
+            break
+
+        elif key in stage["fail"]:
+            play(buzzer)
+
+            sounds = stage["fail"][key]
+            idx = fail_counters[key]
+            play(sounds[idx])
+
+            if idx < len(sounds) - 1:
+                fail_counters[key] += 1
+
+            print(f"Wrong key '{key}', try again...")
+
+        elif stage["fail_default"]:
+            play(buzzer)
+
+            sounds = stage["fail_default"]
+            idx = default_fail_counter
+            play(sounds[idx])
+
+            if idx < len(sounds) - 1:
+                default_fail_counter += 1
+
+            print(f"Unexpected key '{key}', fallback fail triggered.")
 
         else:
-            play(buzzer)                # always play buzzer first
-            play(stage["fail"])         # then JSON fail sound(s)
-            print("Wrong, try again...")  # then immediately wait for next input
+            # If no fallback provided, just beep+buzzer
+            play(buzzer)
+            print(f"Unexpected key '{key}', no fail sounds defined.")
