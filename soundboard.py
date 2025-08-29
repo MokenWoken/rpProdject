@@ -142,14 +142,25 @@ while current_stage_id:
                 else:
                     play(buzzer)
                     print(f"Unexpected key '{key}', no fail sounds defined.")
+                    
 
+                # --- check fail_branches ---
                 # --- check fail_branches ---
                 fb = stage.get("fail_branches", {})
                 if str(fail_count) in fb:
                     branch_def = fb[str(fail_count)]
-                    if key in branch_def["keys"]:
-                        next_stage_id = branch_def["keys"][key]
-                        break
+
+                # Ask for another input after the fail sound
+                    print("Special branch triggered. Waiting for input...")
+                    branch_key = getch().lower()
+
+                    if branch_key in branch_def["keys"]:
+                        next_stage_id = branch_def["keys"][branch_key]
+                    break
+                else:
+                    print(f"No branch for '{branch_key}', continuing fails...")
+                # do nothing special -> next fail_default will handle it
+
 
                 # --- optional direct fail jump ---
                 if "next_on_fail" in stage and stage["next_on_fail"]:
