@@ -42,10 +42,14 @@ def keyboard_connected():
         try:
             caps = dev.capabilities()
             if ecodes.EV_KEY in caps:
-                # Filter out virtual devices
-                if dev.name.lower().startswith("gpio") or "virtual" in dev.name.lower():
+                name = dev.name.lower()
+                phys = (dev.phys or "").lower()
+
+                # Filter out known false positives
+                if "vc4-hdmi" in name or "gpio" in name or "virtual" in name:
                     continue
-                print("Detected device:", dev.name, dev.path, dev.phys)
+
+                # At this point it's likely a real keyboard
                 return True
         except Exception:
             continue
