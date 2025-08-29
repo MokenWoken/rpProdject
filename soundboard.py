@@ -142,6 +142,7 @@ def run_stages():
                 if not keyboard_connected():
                     raise RuntimeError("KeyboardDisconnected")
                 key = getch().lower()
+                play_keypress_sound(key)  # <-- always trigger key sound
                 if key == sequence[seq_index]:
                     play(beep)
                     seq_index += 1
