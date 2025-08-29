@@ -45,7 +45,7 @@ def keyboard_connected():
                 # Filter out virtual devices
                 if dev.name.lower().startswith("gpio") or "virtual" in dev.name.lower():
                     continue
-                    print("Detected device:", dev.name, dev.path, dev.phys)
+                print("Detected device:", dev.name, dev.path, dev.phys)
                 return True
         except Exception:
             continue
