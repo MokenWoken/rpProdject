@@ -35,20 +35,28 @@ def load_sound_list(filenames):
 with open("stages.json", "r") as f:
     stages_data = json.load(f)
 
-stages = []
+# Build dict by ID for branching
+stages_by_id = {}
+stage_order = []
 for s in stages_data:
     stage = {
+        "id": s["id"],
         "prompt": load_sound_list(s["prompt"]),
-        "correct": s["correct"],  # may be string or list
+        "correct": s["correct"],  # may be str, list, or list of lists
         "success": load_sound_list(s["success"]),
         "fail": {k.lower(): load_sound_list(v) for k, v in s.get("fail", {}).items()},
-        "fail_default": load_sound_list(s.get("fail_default", []))
+        "fail_default": load_sound_list(s.get("fail_default", [])),
+        "next_on_success": s.get("next_on_success"),
+        "next_on_fail": s.get("next_on_fail"),
+        "fail_branches": s.get("fail_branches", {})
     }
-    stages.append(stage)
+    stages_by_id[stage["id"]] = stage
+    stage_order.append(stage["id"])
 
 # Load global feedback sounds
 beep = pygame.mixer.Sound("beep.wav")
 buzzer = pygame.mixer.Sound("buzzer.wav")
+
 # Background music
 bg_music = pygame.mixer.Sound("background.wav")
 music_channel = pygame.mixer.Channel(0)
@@ -57,14 +65,17 @@ music_channel.play(bg_music, loops=-1)  # play forever
 print("Game starting...")
 
 # --- Stage loop ---
-for stage in stages:
+current_stage_id = stage_order[0]
+
+while current_stage_id:
+    stage = stages_by_id[current_stage_id]
     play(stage["prompt"])  # play prompt once
 
-    # Keep counters for fail sequences
     fail_counters = {k: 0 for k in stage["fail"]}
     default_fail_counter = 0
+    fail_count = 0
+    next_stage_id = None
 
-    # Handle normal vs. sequence stages
     correct_def = stage["correct"]
 
     # --- Case: sequence of keys ---
@@ -73,7 +84,6 @@ for stage in stages:
         seq_index = 0
         while seq_index < len(sequence):
             key = getch().lower()
-
             if key == sequence[seq_index]:
                 play(beep)
                 seq_index += 1
@@ -87,44 +97,72 @@ for stage in stages:
                         default_fail_counter += 1
                 print("Wrong key in sequence, restarting...")
                 seq_index = 0
-        # Sequence completed
         play(stage["success"])
         print("Sequence completed!")
-        continue  # go to next stage
+        next_stage_id = stage.get("next_on_success")
 
     # --- Case: normal (single or multiple correct keys) ---
-    while True:
-        key = getch().lower()
+    else:
+        while True:
+            key = getch().lower()
 
-        correct_keys = correct_def
-        if isinstance(correct_keys, str):
-            correct_keys = [correct_keys]
-        correct_keys = [ck.lower() for ck in correct_keys]
+            correct_keys = correct_def
+            if isinstance(correct_keys, str):
+                correct_keys = [correct_keys]
+            correct_keys = [ck.lower() for ck in correct_keys]
 
-        if key in correct_keys:
-            play(beep)
-            play(stage["success"])
-            print("Correct!")
-            break
+            if key in correct_keys:
+                play(beep)
+                play(stage["success"])
+                print("Correct!")
+                next_stage_id = stage.get("next_on_success")
+                break
 
-        elif key in stage["fail"]:
-            play(buzzer)
-            sounds = stage["fail"][key]
-            idx = fail_counters[key]
-            play(sounds[idx])
-            if idx < len(sounds) - 1:
-                fail_counters[key] += 1
-            print(f"Wrong key '{key}', try again...")
+            else:
+                fail_count += 1
 
-        elif stage["fail_default"]:
-            play(buzzer)
-            sounds = stage["fail_default"]
-            idx = default_fail_counter
-            play(sounds[idx])
-            if idx < len(sounds) - 1:
-                default_fail_counter += 1
-            print(f"Unexpected key '{key}', fallback fail triggered.")
+                if key in stage["fail"]:
+                    play(buzzer)
+                    sounds = stage["fail"][key]
+                    idx = fail_counters[key]
+                    play(sounds[idx])
+                    if idx < len(sounds) - 1:
+                        fail_counters[key] += 1
+                    print(f"Wrong key '{key}', try again...")
 
+                elif stage["fail_default"]:
+                    play(buzzer)
+                    sounds = stage["fail_default"]
+                    idx = default_fail_counter
+                    play(sounds[idx])
+                    if idx < len(sounds) - 1:
+                        default_fail_counter += 1
+                    print(f"Unexpected key '{key}', fallback fail triggered.")
+
+                else:
+                    play(buzzer)
+                    print(f"Unexpected key '{key}', no fail sounds defined.")
+
+                # --- check fail_branches ---
+                fb = stage.get("fail_branches", {})
+                if str(fail_count) in fb:
+                    branch_def = fb[str(fail_count)]
+                    if key in branch_def["keys"]:
+                        next_stage_id = branch_def["keys"][key]
+                        break
+
+                # --- optional direct fail jump ---
+                if "next_on_fail" in stage and stage["next_on_fail"]:
+                    next_stage_id = stage["next_on_fail"]
+                    break
+
+    # --- Move to next stage ---
+    if not next_stage_id:
+        # if not overridden, go to next in JSON order
+        current_index = stage_order.index(stage["id"])
+        if current_index + 1 < len(stage_order):
+            next_stage_id = stage_order[current_index + 1]
         else:
-            play(buzzer)
-            print(f"Unexpected key '{key}', no fail sounds defined.")
+            next_stage_id = None  # end of game
+
+    current_stage_id = next_stage_id
