@@ -27,6 +27,7 @@
     "fail_default": ["beep.wav"]
   }
 ],
+{
 "id": "stagesword",
     "prompt": ["beep.wav"],
     "correct": "W",
