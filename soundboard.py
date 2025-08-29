@@ -17,15 +17,26 @@ def play(sound_or_list):
             pygame.time.delay(10)
 
 def getch():
-    """Capture one raw key press."""
+    """Capture one raw key press without terminal echo."""
     fd = sys.stdin.fileno()
     old_settings = termios.tcgetattr(fd)
     try:
-        tty.setraw(fd)
+        # Use setcbreak for better echo suppression
+        tty.setcbreak(fd)
         ch = sys.stdin.read(1)
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
     return ch
+
+def getch_with_sound():
+    """Capture one raw key press and play keypress sound."""
+    key = getch()
+    try:
+        play_keypress_sound(key.lower())
+    except Exception as e:
+        # Continue if sound playback fails
+        pass
+    return key
 
 def load_sound_list(filenames):
     """Load .wav files into pygame Sound objects."""
@@ -109,11 +120,17 @@ keypress_fallback = load_sound_list(kp_data.get("keypress_fallback", []))
 
 def play_keypress_sound(key):
     """Play a random sound for this key on the keypress channel."""
-    if key in keypress_sounds:
-        sound = random.choice(keypress_sounds[key])
-    else:
-        sound = random.choice(keypress_fallback)
-    keypress_sounds_channel.play(sound)
+    try:
+        if key in keypress_sounds and keypress_sounds[key]:
+            sound = random.choice(keypress_sounds[key])
+        elif keypress_fallback:
+            sound = random.choice(keypress_fallback)
+        else:
+            return  # No sounds available
+        keypress_sounds_channel.play(sound)
+    except Exception as e:
+        # Silently continue if sound playback fails
+        pass
 
 # --- Stage runner ---
 def run_stages():
@@ -140,8 +157,7 @@ def run_stages():
             while seq_index < len(sequence):
                 if not keyboard_connected():
                     raise RuntimeError("KeyboardDisconnected")
-                key = getch().lower()
-                play_keypress_sound(key)  # <-- always trigger key sound
+                key = getch_with_sound().lower()
                 if key == sequence[seq_index]:
                     play(beep)
                     seq_index += 1
@@ -165,7 +181,7 @@ def run_stages():
                 if not keyboard_connected():
                     raise RuntimeError("KeyboardDisconnected")
 
-                key = getch().lower()
+                key = getch_with_sound().lower()
                 correct_keys = correct_def
                 if isinstance(correct_keys, str):
                     correct_keys = [correct_keys]
@@ -204,7 +220,7 @@ def run_stages():
                     if str(fail_count) in fb:
                         branch_def = fb[str(fail_count)]
                         print("Special branch triggered. Waiting for input...")
-                        branch_key = getch().lower()
+                        branch_key = getch_with_sound().lower()
                         if branch_key in branch_def["keys"]:
                             next_stage_id = branch_def["keys"][branch_key]
                             break
