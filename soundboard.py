@@ -45,7 +45,7 @@ for s in stages_data:
 
 # Load global feedback sounds
 beep = pygame.mixer.Sound("beep.wav")
-buzzer = pygame.mixer.Sound("buzzer.wav")
+buzzer = pygame.mixer.Sound("beep.wav")
 
 print("Game starting...")
 
