@@ -91,7 +91,9 @@ buzzer = pygame.mixer.Sound("buzzer.wav")
 # Background music
 bg_music = pygame.mixer.Sound("background.wav")
 music_channel = pygame.mixer.Channel(0)
+sfx_channel = pygame.mixer.Channel(1)
 #music_channel.play(bg_music, loops=-1)
+keyboard_connected_sound = pygame.mixer.Sound("keyboard_connected.wav")
 
 # --- Stage runner ---
 
@@ -208,6 +210,7 @@ def run_stages():
 while True:
     wait_for_keyboard()
     # Fade in background music when keyboard appears
+    sfx_channel.play(keyboard_connected_sound)
     music_channel.play(bg_music, loops=-1, fade_ms=2000)  # 2 sec fade in
     try:
         run_stages()
