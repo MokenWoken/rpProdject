@@ -21,12 +21,7 @@ def getch():
     fd = sys.stdin.fileno()
     old_settings = termios.tcgetattr(fd)
     try:
-        # Use more explicit raw mode settings to suppress echo
         tty.setraw(fd)
-        # Ensure echo is disabled
-        new_settings = termios.tcgetattr(fd)
-        new_settings[3] = new_settings[3] & ~(termios.ECHO | termios.ICANON)
-        termios.tcsetattr(fd, termios.TCSADRAIN, new_settings)
         ch = sys.stdin.read(1)
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
@@ -111,7 +106,8 @@ keypress_sounds = {
 }
 keypress_fallback = load_sound_list(kp_data.get("keypress_fallback", []))
 
-
+# Reserve a dedicated channel
+keypress_sounds_channel = pygame.mixer.Channel(2)
 def play_keypress_sound(key):
     """Play a random sound for this key on the keypress channel."""
     if key in keypress_sounds:
@@ -119,12 +115,6 @@ def play_keypress_sound(key):
     else:
         sound = random.choice(keypress_fallback)
     keypress_sounds_channel.play(sound)
-
-def getch_with_sound():
-    """Capture one raw key press and play keypress sound."""
-    key = getch().lower()
-    play_keypress_sound(key)
-    return key
 
 # --- Stage runner ---
 def run_stages():
@@ -176,7 +166,8 @@ def run_stages():
                 if not keyboard_connected():
                     raise RuntimeError("KeyboardDisconnected")
 
-                key = getch_with_sound()
+                key = getch().lower()
+                play_keypress_sound(key)
                 correct_keys = correct_def
                 if isinstance(correct_keys, str):
                     correct_keys = [correct_keys]
@@ -215,7 +206,8 @@ def run_stages():
                     if str(fail_count) in fb:
                         branch_def = fb[str(fail_count)]
                         print("Special branch triggered. Waiting for input...")
-                        branch_key = getch_with_sound()
+                        branch_key = getch().lower()
+                        play_keypress_sound(key)
                         if branch_key in branch_def["keys"]:
                             next_stage_id = branch_def["keys"][branch_key]
                             break
