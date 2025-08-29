@@ -36,12 +36,15 @@ def load_sound_list(filenames):
 from evdev import ecodes
 
 def keyboard_connected():
-    """Return True if any device with keyboard capabilities is connected."""
+    """Return True if a real USB/Bluetooth keyboard is connected."""
     devices = [InputDevice(path) for path in list_devices()]
     for dev in devices:
         try:
             caps = dev.capabilities()
-            if ecodes.EV_KEY in caps:  # has key events
+            if ecodes.EV_KEY in caps:
+                # Filter out virtual devices
+                if dev.name.lower().startswith("gpio") or "virtual" in dev.name.lower():
+                    continue
                 return True
         except Exception:
             continue
