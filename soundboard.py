@@ -1,4 +1,4 @@
-import pygame, random, json, time
+import pygame, random, json, time, atexit
 from evdev import InputDevice, list_devices, categorize, ecodes
 
 # --- Init mixer (tuned for Pi 1B) ---
@@ -21,7 +21,7 @@ def load_sound_list(filenames):
 
 # --- Keyboard handling ---
 def open_keyboard():
-    """Find and open the first real keyboard device."""
+    """Find and open the first real keyboard device and grab it exclusively."""
     devices = [InputDevice(path) for path in list_devices()]
     for dev in devices:
         try:
@@ -30,10 +30,17 @@ def open_keyboard():
                 name = dev.name.lower()
                 if "vc4-hdmi" in name or "gpio" in name or "virtual" in name:
                     continue
-                return InputDevice(dev.path)
+                dev.grab()   # <--- grab keyboard exclusively
+                return dev
         except Exception:
             continue
     return None
+def release_keyboard(dev):
+    try:
+        dev.ungrab()
+    except Exception:
+        pass
+
 
 def get_key_event(dev):
     """Block until a key press event is read, return a lowercase key string."""
@@ -220,6 +227,7 @@ def run_stages(kb):
 # --- Main controller ---
 while True:
     kb = wait_for_keyboard()
+    atexit.register(release_keyboard, kb)
 
     # Feedback + fade in music
     sfx_channel.play(keyboard_connected_sound)
