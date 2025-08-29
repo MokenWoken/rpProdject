@@ -16,6 +16,11 @@ def play(sound_or_list):
         while ch.get_busy():
             pygame.time.delay(10)
 
+def play_nonblocking(sound_or_list):
+    """Play one sound (or random from a list) without blocking."""
+    sound = random.choice(sound_or_list) if isinstance(sound_or_list, list) else sound_or_list
+    sound.play()
+
 def getch():
     """Capture one raw key press."""
     fd = sys.stdin.fileno()
@@ -98,7 +103,6 @@ bg_music = pygame.mixer.Sound("background.wav")
 music_channel = pygame.mixer.Channel(0)
 sfx_channel = pygame.mixer.Channel(1)
 keypress_sounds_channel = pygame.mixer.Channel(2)
-#music_channel.play(bg_music, loops=-1)
 keyboard_connected_sound = pygame.mixer.Sound("keyboard_connected.wav")
 
 # --- Load keypress sounds separately ---
@@ -154,14 +158,14 @@ def run_stages():
                 key = getch().lower()
                 play_keypress_sound(key)  # <-- always trigger key sound
                 if key == sequence[seq_index]:
-                    play(beep)
+                    play_nonblocking(beep)  # NON-BLOCKING beep
                     seq_index += 1
                 else:
-                    play(buzzer)
+                    play_nonblocking(buzzer)  # NON-BLOCKING buzzer
                     if stage["fail_default"]:
                         idx = default_fail_counter
                         sounds = stage["fail_default"]
-                        play(sounds[idx])
+                        play(sounds[idx])  # Keep fail sounds blocking
                         if idx < len(sounds) - 1:
                             default_fail_counter += 1
                     print("Wrong key in sequence, restarting...")
@@ -183,31 +187,31 @@ def run_stages():
                 correct_keys = [ck.lower() for ck in correct_keys]
 
                 if key in correct_keys:
-                    play(beep)
-                    play(stage["success"])
+                    play_nonblocking(beep)  # NON-BLOCKING beep
+                    play(stage["success"])  # Keep success sounds blocking
                     print("Correct!")
                     next_stage_id = stage.get("next_on_success")
                     break
                 else:
                     fail_count += 1
                     if key in stage["fail"]:
-                        play(buzzer)
+                        play_nonblocking(buzzer)  # NON-BLOCKING buzzer
                         sounds = stage["fail"][key]
                         idx = fail_counters[key]
-                        play(sounds[idx])
+                        play(sounds[idx])  # Keep fail sounds blocking
                         if idx < len(sounds) - 1:
                             fail_counters[key] += 1
                         print(f"Wrong key '{key}', try again...")
                     elif stage["fail_default"]:
-                        play(buzzer)
+                        play_nonblocking(buzzer)  # NON-BLOCKING buzzer
                         sounds = stage["fail_default"]
                         idx = default_fail_counter
-                        play(sounds[idx])
+                        play(sounds[idx])  # Keep fail sounds blocking
                         if idx < len(sounds) - 1:
                             default_fail_counter += 1
                         print(f"Unexpected key '{key}', fallback fail triggered.")
                     else:
-                        play(buzzer)
+                        play_nonblocking(buzzer)  # NON-BLOCKING buzzer
                         print(f"Unexpected key '{key}', no fail sounds defined.")
 
                     # --- check fail_branches ---
