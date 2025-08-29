@@ -25,3 +25,39 @@ A normal stage can be:
 or
 
 "correct": ["a"," "]
+
+
+
+[
+  {
+    "id": "stage1",
+    "prompt": ["beginning1.wav"],
+    "correct": " ",
+    "success": ["spacebar_success_goto_W.wav"],
+    "fail": {
+      "b": ["beep.wav"]
+    },
+    "fail_default": ["spacebar_fail1.wav", "spacebar_fail2.wav", "spacebar_fail3.wav", "spacebar_fail4.wav", "spacebar_fail5.wav", "spacebar_fail6_s_request.wav", "spacebar_S_fail7_.wav"],
+    
+    // optional overrides
+    "next_on_success": "stage2",
+    "next_on_fail": "game_over",
+
+    // special branch after N fails
+    "fail_branches": {
+      "6": {
+        "keys": {
+          "s": "secret_stage_x",
+          " ": "stage2"
+        }
+      }
+    }
+  },
+  {
+    "id": "stage2",
+    "prompt": ["W_start.wav"],
+    "correct": "W",
+    "success": ["w_success.wav"],
+    "fail_default": ["beep.wav"]
+  }
+]
