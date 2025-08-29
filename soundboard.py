@@ -212,6 +212,7 @@ while True:
     # Fade in background music when keyboard appears
     sfx_channel.play(keyboard_connected_sound)
     music_channel.play(bg_music, loops=-1, fade_ms=2000)  # 2 sec fade in
+    time.sleep(1)
     try:
         run_stages()
         print("Game finished!")
