@@ -19,10 +19,15 @@ def load_sound_list(filenames):
     """Load .wav files into pygame Sound objects."""
     return [pygame.mixer.Sound(f) for f in filenames]
 
-# --- Keyboard handling (keeping your original detection logic) ---
-def open_keyboard():
-    """Find and open the first real keyboard device and grab it exclusively."""
+# --- Keyboard handling (grab ALL keyboards to prevent terminal input) ---
+grabbed_devices = []
+
+def grab_all_keyboards():
+    """Find and grab ALL keyboard devices to prevent terminal input."""
+    global grabbed_devices
     devices = [InputDevice(path) for path in list_devices()]
+    main_keyboard = None
+    
     for dev in devices:
         try:
             caps = dev.capabilities()
@@ -34,24 +39,22 @@ def open_keyboard():
                     print(f"  -> Skipped (virtual/system device)")
                     continue
                 
-                print(f"  -> Attempting to grab keyboard...")
+                print(f"  -> Attempting to grab...")
                 
                 # Add small delay before grabbing (helps with some systems)
                 time.sleep(0.1)
                 
                 # Try to grab exclusive access
                 dev.grab()
+                grabbed_devices.append(dev)
                 print(f"  -> Successfully grabbed: {dev.name}")
-                return dev
                 
-        except PermissionError as e:
-            print(f"  -> Permission denied: {e}")
-            print(f"     Try running as root: sudo python3 {sys.argv[0]}")
-            continue
-        except Exception as e:
-            print(f"  -> Error with {dev.name}: {e}")
-            continue
-    return None
+                # Use the first successfully grabbed device as our main input
+                if main_keyboard is None:
+                    main_keyboard = dev
+                    print(f"  -> Using as main input device")
+                
+        except PermissionError as e
 
 def release_keyboard(dev):
     try:
@@ -147,24 +150,32 @@ sfx_channel = pygame.mixer.Channel(1)
 
 # --- Stage runner ---
 def run_stages(kb):
+    print("DEBUG: Starting run_stages")
     current_stage_id = stage_order[0]
+    print(f"DEBUG: First stage ID: {current_stage_id}")
 
     while current_stage_id:
         stage = stages_by_id[current_stage_id]
+        print(f"DEBUG: Playing prompt for stage {current_stage_id}")
         play(stage["prompt"])
+        print(f"DEBUG: Prompt finished, now waiting for keyboard input...")
 
         fail_counters = {k: 0 for k in stage["fail"]}
         default_fail_counter = 0
         fail_count = 0
         next_stage_id = None
         correct_def = stage["correct"]
+        print(f"DEBUG: Correct answer is: {correct_def}")
 
         # --- Case: sequence of keys ---
         if isinstance(correct_def, list) and len(correct_def) > 0 and isinstance(correct_def[0], list):
+            print("DEBUG: Sequence mode detected")
             sequence = [k.lower() for k in correct_def[0]]
             seq_index = 0
             while seq_index < len(sequence):
+                print(f"DEBUG: Waiting for key {seq_index+1} of {len(sequence)} in sequence...")
                 key = get_key_event(kb)
+                print(f"DEBUG: Received key: '{key}'")
                 play_keypress_sound(key)
                 if key == sequence[seq_index]:
                     play(beep, block=False)
@@ -185,8 +196,11 @@ def run_stages(kb):
 
         # --- Case: normal ---
         else:
+            print("DEBUG: Normal mode - waiting for single key")
             while True:
+                print(f"DEBUG: About to call get_key_event()...")
                 key = get_key_event(kb)
+                print(f"DEBUG: Received key from get_key_event: '{key}'")
                 play_keypress_sound(key)
 
                 correct_keys = correct_def
