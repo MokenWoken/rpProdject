@@ -64,11 +64,39 @@ for stage in stages:
     fail_counters = {k: 0 for k in stage["fail"]}
     default_fail_counter = 0
 
+    # Handle normal vs. sequence stages
+    correct_def = stage["correct"]
+
+    # --- Case: sequence of keys ---
+    if isinstance(correct_def, list) and len(correct_def) > 0 and isinstance(correct_def[0], list):
+        sequence = [k.lower() for k in correct_def[0]]
+        seq_index = 0
+        while seq_index < len(sequence):
+            key = getch().lower()
+
+            if key == sequence[seq_index]:
+                play(beep)
+                seq_index += 1
+            else:
+                play(buzzer)
+                if stage["fail_default"]:
+                    idx = default_fail_counter
+                    sounds = stage["fail_default"]
+                    play(sounds[idx])
+                    if idx < len(sounds) - 1:
+                        default_fail_counter += 1
+                print("Wrong key in sequence, restarting...")
+                seq_index = 0
+        # Sequence completed
+        play(stage["success"])
+        print("Sequence completed!")
+        continue  # go to next stage
+
+    # --- Case: normal (single or multiple correct keys) ---
     while True:
         key = getch().lower()
 
-        # Normalize correct keys to a list
-        correct_keys = stage["correct"]
+        correct_keys = correct_def
         if isinstance(correct_keys, str):
             correct_keys = [correct_keys]
         correct_keys = [ck.lower() for ck in correct_keys]
@@ -81,29 +109,22 @@ for stage in stages:
 
         elif key in stage["fail"]:
             play(buzzer)
-
             sounds = stage["fail"][key]
             idx = fail_counters[key]
             play(sounds[idx])
-
             if idx < len(sounds) - 1:
                 fail_counters[key] += 1
-
             print(f"Wrong key '{key}', try again...")
 
         elif stage["fail_default"]:
             play(buzzer)
-
             sounds = stage["fail_default"]
             idx = default_fail_counter
             play(sounds[idx])
-
             if idx < len(sounds) - 1:
                 default_fail_counter += 1
-
             print(f"Unexpected key '{key}', fallback fail triggered.")
 
         else:
-            # If no fallback provided, just play buzzer
             play(buzzer)
             print(f"Unexpected key '{key}', no fail sounds defined.")
