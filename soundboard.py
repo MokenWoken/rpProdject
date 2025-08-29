@@ -1,24 +1,33 @@
 import pygame
+import sys
+import termios
+import tty
 
-# init pygame
-pygame.init()
+# Init pygame mixer
 pygame.mixer.init()
 
-# create a window (needed for key events)
-screen = pygame.display.set_mode((400, 200))
-pygame.display.set_caption("Soundboard")
-
-# load sounds
+# Load sounds
 sound_a = pygame.mixer.Sound("sound_a.wav")
 sound_b = pygame.mixer.Sound("sound_b.wav")
 
-running = True
-while running:
-    for event in pygame.event.get():
-        if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_a:
-                sound_a.play()
-            elif event.key == pygame.K_b:
-                sound_b.play()
-            elif event.key == pygame.K_ESCAPE:
-                running = False
+# Function to capture single key presses
+def getch():
+    fd = sys.stdin.fileno()
+    old_settings = termios.tcgetattr(fd)
+    try:
+        tty.setraw(fd)
+        ch = sys.stdin.read(1)
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+    return ch
+
+print("Press A or B to play sounds. Press ESC to quit.")
+
+while True:
+    key = getch()
+    if key.lower() == 'a':
+        sound_a.play()
+    elif key.lower() == 'b':
+        sound_b.play()
+    elif ord(key) == 27:  # ESC
+        break
