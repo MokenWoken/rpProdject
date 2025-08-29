@@ -62,11 +62,15 @@ for stage in stages:
     while True:
         key = getch().lower()
 
-        if key == stage["correct"]:
-            play(beep)
-            play(stage["success"])   # random success
-            print("Correct!")
-            break
+        correct_keys = stage["correct"]
+if isinstance(correct_keys, str):
+    correct_keys = [correct_keys]   # make single values into a list
+
+if key in correct_keys:
+    play(beep)
+    play(stage["success"])
+    print("Correct!")
+    break
 
         elif key in stage["fail"]:
             play(buzzer)
