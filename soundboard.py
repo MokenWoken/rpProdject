@@ -1,4 +1,4 @@
-import pygame, random, json, time, atexit
+import pygame, random, json, time, atexit, os, sys
 from evdev import InputDevice, list_devices, categorize, ecodes
 
 # --- Init mixer (tuned for Pi 1B) ---
@@ -19,28 +19,99 @@ def load_sound_list(filenames):
     """Load .wav files into pygame Sound objects."""
     return [pygame.mixer.Sound(f) for f in filenames]
 
-# --- Keyboard handling ---
+# --- Enhanced keyboard handling ---
+def find_keyboards():
+    """Find all keyboard-like devices and return them sorted by preference."""
+    devices = []
+    for path in list_devices():
+        try:
+            dev = InputDevice(path)
+            caps = dev.capabilities()
+            
+            # Must have key events
+            if ecodes.EV_KEY not in caps:
+                continue
+                
+            name = dev.name.lower()
+            print(f"Found input device: {dev.name} ({path})")
+            
+            # Skip virtual, HDMI audio, GPIO devices
+            if any(skip in name for skip in ["vc4-hdmi", "gpio", "virtual", "bcm2835"]):
+                print(f"  -> Skipped (virtual/system device)")
+                continue
+                
+            # Check if it has keyboard-like keys
+            key_caps = caps.get(ecodes.EV_KEY, [])
+            has_letters = any(code in key_caps for code in [
+                ecodes.KEY_A, ecodes.KEY_B, ecodes.KEY_C, ecodes.KEY_D, ecodes.KEY_E
+            ])
+            has_numbers = any(code in key_caps for code in [
+                ecodes.KEY_1, ecodes.KEY_2, ecodes.KEY_3, ecodes.KEY_4, ecodes.KEY_5
+            ])
+            
+            if has_letters or has_numbers:
+                # Prefer USB keyboards over others
+                priority = 1 if "usb" in name else 2
+                devices.append((priority, dev, path))
+                print(f"  -> Added as keyboard candidate (priority {priority})")
+            else:
+                print(f"  -> Skipped (no keyboard keys)")
+                
+        except Exception as e:
+            print(f"Error checking device {path}: {e}")
+            continue
+    
+    # Sort by priority (lower number = higher priority)
+    devices.sort(key=lambda x: x[0])
+    return [dev for _, dev, _ in devices]
+
 def open_keyboard():
     """Find and open the first real keyboard device and grab it exclusively."""
-    devices = [InputDevice(path) for path in list_devices()]
-    for dev in devices:
+    keyboards = find_keyboards()
+    
+    for dev in keyboards:
         try:
-            caps = dev.capabilities()
-            if ecodes.EV_KEY in caps:
-                name = dev.name.lower()
-                if "vc4-hdmi" in name or "gpio" in name or "virtual" in name:
-                    continue
-                dev.grab()   # <--- grab keyboard exclusively
-                return dev
-        except Exception:
+            print(f"Attempting to grab: {dev.name} ({dev.path})")
+            
+            # Add delay before grabbing as suggested in research
+            time.sleep(0.1)
+            
+            # Try to grab exclusive access
+            dev.grab()
+            print(f"  -> Successfully grabbed!")
+            
+            # Test that we can read from it
+            dev.set_absinfo(ecodes.ABS_X, (0, 100, 0, 0, 0, 0))  # This will fail if not a real device
+            
+            return dev
+            
+        except OSError as e:
+            print(f"  -> Failed to grab ({e})")
+            try:
+                dev.close()
+            except:
+                pass
             continue
+        except Exception as e:
+            print(f"  -> Error: {e}")
+            try:
+                dev.ungrab()
+                dev.close()
+            except:
+                pass
+            continue
+    
     return None
-def release_keyboard(dev):
-    try:
-        dev.ungrab()
-    except Exception:
-        pass
 
+def release_keyboard(dev):
+    """Safely release keyboard grab."""
+    if dev:
+        try:
+            print(f"Releasing keyboard: {dev.name}")
+            dev.ungrab()
+            dev.close()
+        except Exception as e:
+            print(f"Error releasing keyboard: {e}")
 
 def get_key_event(dev):
     """Block until a key press event is read, return a lowercase key string."""
@@ -63,12 +134,27 @@ def wait_for_keyboard():
     """Block until a real keyboard is connected and return the device."""
     print("Waiting for keyboard...")
     kb = None
+    attempt = 0
     while not kb:
+        attempt += 1
+        print(f"Attempt {attempt}...")
+        
         kb = open_keyboard()
         if not kb:
-            time.sleep(1)
-    print(f"Keyboard detected: {kb.name} ({kb.path})")
+            print("No keyboard found, waiting 2 seconds...")
+            time.sleep(2)
+        else:
+            print(f"Keyboard ready: {kb.name} ({kb.path})")
+    
     return kb
+
+# Check if running as root (may be required for grabbing)
+if os.geteuid() != 0:
+    print("WARNING: Not running as root. If keyboard grab fails, try:")
+    print("  sudo python3 your_script.py")
+    print("  or add your user to the 'input' group:")
+    print("  sudo usermod -a -G input $USER")
+    print()
 
 # --- Load stage data ---
 with open("stages.json", "r") as f:
@@ -225,23 +311,37 @@ def run_stages(kb):
         current_stage_id = next_stage_id
 
 # --- Main controller ---
-while True:
-    kb = wait_for_keyboard()
-    atexit.register(release_keyboard, kb)
+kb = None
+try:
+    while True:
+        if kb:
+            release_keyboard(kb)
+            kb = None
+            
+        kb = wait_for_keyboard()
+        atexit.register(release_keyboard, kb)
 
-    # Feedback + fade in music
-    sfx_channel.play(keyboard_connected_sound)
-    music_channel.play(bg_music, loops=-1, fade_ms=2000)
-    time.sleep(2)
+        # Feedback + fade in music
+        sfx_channel.play(keyboard_connected_sound)
+        music_channel.play(bg_music, loops=-1, fade_ms=2000)
+        time.sleep(2)
 
-    try:
-        run_stages(kb)
-        print("Game finished!")
-        break
-    except RuntimeError as e:
-        if str(e) == "KeyboardDisconnected":
-            print("Keyboard disconnected! Restarting from stage 1...")
-            music_channel.fadeout(2000)
-            continue
-        else:
-            raise
+        try:
+            run_stages(kb)
+            print("Game finished!")
+            break
+        except RuntimeError as e:
+            if str(e) == "KeyboardDisconnected":
+                print("Keyboard disconnected! Restarting from stage 1...")
+                music_channel.fadeout(2000)
+                continue
+            else:
+                raise
+        except KeyboardInterrupt:
+            print("\nShutting down...")
+            break
+            
+finally:
+    if kb:
+        release_keyboard(kb)
+    pygame.quit()
