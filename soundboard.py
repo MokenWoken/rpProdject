@@ -140,7 +140,7 @@ def run_stages():
             raise RuntimeError("KeyboardDisconnected")
 
         stage = stages_by_id[current_stage_id]
-        play(stage["prompt"])
+        play_nonblocking(stage["prompt"])  # NON-BLOCKING prompt
 
         fail_counters = {k: 0 for k in stage["fail"]}
         default_fail_counter = 0
@@ -165,12 +165,12 @@ def run_stages():
                     if stage["fail_default"]:
                         idx = default_fail_counter
                         sounds = stage["fail_default"]
-                        play(sounds[idx])  # Keep fail sounds blocking
+                        play_nonblocking(sounds[idx])  # NON-BLOCKING fail sound
                         if idx < len(sounds) - 1:
                             default_fail_counter += 1
                     print("Wrong key in sequence, restarting...")
                     seq_index = 0
-            play(stage["success"])
+            play_nonblocking(stage["success"])  # NON-BLOCKING success
             print("Sequence completed!")
             next_stage_id = stage.get("next_on_success")
 
@@ -188,7 +188,7 @@ def run_stages():
 
                 if key in correct_keys:
                     play_nonblocking(beep)  # NON-BLOCKING beep
-                    play(stage["success"])  # Keep success sounds blocking
+                    play_nonblocking(stage["success"])  # NON-BLOCKING success
                     print("Correct!")
                     next_stage_id = stage.get("next_on_success")
                     break
@@ -198,7 +198,7 @@ def run_stages():
                         play_nonblocking(buzzer)  # NON-BLOCKING buzzer
                         sounds = stage["fail"][key]
                         idx = fail_counters[key]
-                        play(sounds[idx])  # Keep fail sounds blocking
+                        play_nonblocking(sounds[idx])  # NON-BLOCKING fail sound
                         if idx < len(sounds) - 1:
                             fail_counters[key] += 1
                         print(f"Wrong key '{key}', try again...")
@@ -206,7 +206,7 @@ def run_stages():
                         play_nonblocking(buzzer)  # NON-BLOCKING buzzer
                         sounds = stage["fail_default"]
                         idx = default_fail_counter
-                        play(sounds[idx])  # Keep fail sounds blocking
+                        play_nonblocking(sounds[idx])  # NON-BLOCKING fail sound
                         if idx < len(sounds) - 1:
                             default_fail_counter += 1
                         print(f"Unexpected key '{key}', fallback fail triggered.")
