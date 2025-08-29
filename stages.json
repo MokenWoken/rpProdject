@@ -10,7 +10,7 @@
     "fail_default": ["wrongB1.wav"]
   },
   {
-    "prompt": ["beep.wav"],
+    "prompt": ["beep1.wav"],
     "correct": "b",
     "success": ["beep.wav"],
     "fail": {
