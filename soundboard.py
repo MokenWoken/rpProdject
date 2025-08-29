@@ -9,11 +9,19 @@ pygame.mixer.init()
 # --- Utility functions ---
 def play(sound_or_list, block=True):
     """Play one sound (or random from a list). Blocks unless block=False."""
-    sound = random.choice(sound_or_list) if isinstance(sound_or_list, list) else sound_or_list
-    ch = sound.play()
-    if block and ch is not None:
-        while ch.get_busy():
-            pygame.time.delay(10)
+    try:
+        sound = random.choice(sound_or_list) if isinstance(sound_or_list, list) else sound_or_list
+        print(f"DEBUG: Playing sound, block={block}")
+        ch = sound.play()
+        if block and ch is not None:
+            print(f"DEBUG: Blocking until sound finishes...")
+            while ch.get_busy():
+                pygame.time.delay(10)
+            print(f"DEBUG: Sound finished")
+        else:
+            print(f"DEBUG: Sound started (non-blocking)")
+    except Exception as e:
+        print(f"DEBUG: Error playing sound: {e}")
 
 def load_sound_list(filenames):
     """Load .wav files into pygame Sound objects."""
@@ -291,9 +299,13 @@ while True:
     atexit.register(release_keyboard, kb)
 
     # Feedback + fade in music
+    print("DEBUG: Playing keyboard connected sound...")
     sfx_channel.play(keyboard_connected_sound)
+    print("DEBUG: Starting background music...")
     music_channel.play(bg_music, loops=-1, fade_ms=2000)
+    print("DEBUG: Sleeping 2 seconds...")
     time.sleep(2)
+    print("DEBUG: About to call run_stages...")
 
     try:
         run_stages(kb)
