@@ -2,7 +2,7 @@ import pygame, sys, termios, tty, random, json, time
 from evdev import InputDevice, list_devices
 
 # Init mixer (tuned for Pi 1)
-pygame.mixer.pre_init(22050, -16, 1, 1024)
+pygame.mixer.pre_init(22050, -16, 1, 256)
 pygame.init()
 pygame.mixer.init()
 
