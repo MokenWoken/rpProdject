@@ -1,69 +1,69 @@
-import pygame, sys, termios, tty, random, json, time
-from evdev import InputDevice, list_devices
+import pygame, random, json, time
+from evdev import InputDevice, list_devices, categorize, ecodes
 
-# Init mixer (tuned for Pi 1)
+# --- Init mixer (tuned for Pi 1B) ---
 pygame.mixer.pre_init(22050, -16, 1, 256)
 pygame.init()
 pygame.mixer.init()
 
 # --- Utility functions ---
-
-def play(sound_or_list):
-    """Play one sound (or random from a list) and block until finished (ignores background music)."""
+def play(sound_or_list, block=True):
+    """Play one sound (or random from a list). Blocks unless block=False."""
     sound = random.choice(sound_or_list) if isinstance(sound_or_list, list) else sound_or_list
     ch = sound.play()
-    if ch is not None:
+    if block and ch is not None:
         while ch.get_busy():
             pygame.time.delay(10)
-
-def getch():
-    """Capture one raw key press."""
-    fd = sys.stdin.fileno()
-    old_settings = termios.tcgetattr(fd)
-    try:
-        tty.setraw(fd)
-        ch = sys.stdin.read(1)
-    finally:
-        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-    return ch
 
 def load_sound_list(filenames):
     """Load .wav files into pygame Sound objects."""
     return [pygame.mixer.Sound(f) for f in filenames]
 
-# --- Keyboard detection ---
-
-from evdev import ecodes
-
-def keyboard_connected():
-    """Return True if a real USB/Bluetooth keyboard is connected."""
+# --- Keyboard handling ---
+def open_keyboard():
+    """Find and open the first real keyboard device."""
     devices = [InputDevice(path) for path in list_devices()]
     for dev in devices:
         try:
             caps = dev.capabilities()
             if ecodes.EV_KEY in caps:
                 name = dev.name.lower()
-                phys = (dev.phys or "").lower()
-
-                # Filter out known false positives
                 if "vc4-hdmi" in name or "gpio" in name or "virtual" in name:
                     continue
-
-                # At this point it's likely a real keyboard
-                return True
+                return InputDevice(dev.path)
         except Exception:
             continue
-    return False
+    return None
+
+def get_key_event(dev):
+    """Block until a key press event is read, return a lowercase key string."""
+    try:
+        for event in dev.read_loop():
+            if event.type == ecodes.EV_KEY:
+                key_event = categorize(event)
+                if key_event.keystate == key_event.key_down:
+                    code = key_event.keycode
+                    if isinstance(code, list):   # sometimes a list
+                        code = code[0]
+                    if code.startswith("KEY_"):
+                        return code[4:].lower()
+                    return code.lower()
+    except OSError:
+        # device disappeared
+        raise RuntimeError("KeyboardDisconnected")
 
 def wait_for_keyboard():
-    """Block until a keyboard is connected."""
+    """Block until a real keyboard is connected and return the device."""
     print("Waiting for keyboard...")
-    while not keyboard_connected():
-        time.sleep(1)
-    print("Keyboard detected!")
+    kb = None
+    while not kb:
+        kb = open_keyboard()
+        if not kb:
+            time.sleep(1)
+    print(f"Keyboard detected: {kb.name} ({kb.path})")
+    return kb
 
 # --- Load stage data ---
-
 with open("stages.json", "r") as f:
     stages_data = json.load(f)
 
@@ -84,19 +84,7 @@ for s in stages_data:
     stages_by_id[stage["id"]] = stage
     stage_order.append(stage["id"])
 
-# Load global feedback sounds
-beep = pygame.mixer.Sound("beep.wav")
-buzzer = pygame.mixer.Sound("buzzer.wav")
-
-# Background music
-bg_music = pygame.mixer.Sound("background.wav")
-music_channel = pygame.mixer.Channel(0)
-sfx_channel = pygame.mixer.Channel(1)
-keypress_sounds_channel = pygame.mixer.Channel(2)
-#music_channel.play(bg_music, loops=-1)
-keyboard_connected_sound = pygame.mixer.Sound("keyboard_connected.wav")
-
-# --- Load keypress sounds separately ---
+# --- Load keypress sounds ---
 with open("keypress.json", "r") as f:
     kp_data = json.load(f)
 
@@ -106,8 +94,8 @@ keypress_sounds = {
 }
 keypress_fallback = load_sound_list(kp_data.get("keypress_fallback", []))
 
-# Reserve a dedicated channel
 keypress_sounds_channel = pygame.mixer.Channel(2)
+
 def play_keypress_sound(key):
     """Play a random sound for this key on the keypress channel."""
     if key in keypress_sounds:
@@ -116,15 +104,20 @@ def play_keypress_sound(key):
         sound = random.choice(keypress_fallback)
     keypress_sounds_channel.play(sound)
 
+# --- Global sounds ---
+beep = pygame.mixer.Sound("beep.wav")
+buzzer = pygame.mixer.Sound("buzzer.wav")
+bg_music = pygame.mixer.Sound("background.wav")
+keyboard_connected_sound = pygame.mixer.Sound("keyboard_connected.wav")
+
+music_channel = pygame.mixer.Channel(0)
+sfx_channel = pygame.mixer.Channel(1)
+
 # --- Stage runner ---
-def run_stages():
+def run_stages(kb):
     current_stage_id = stage_order[0]
 
     while current_stage_id:
-        # Check if keyboard still present
-        if not keyboard_connected():
-            raise RuntimeError("KeyboardDisconnected")
-
         stage = stages_by_id[current_stage_id]
         play(stage["prompt"])
 
@@ -139,12 +132,10 @@ def run_stages():
             sequence = [k.lower() for k in correct_def[0]]
             seq_index = 0
             while seq_index < len(sequence):
-                if not keyboard_connected():
-                    raise RuntimeError("KeyboardDisconnected")
-                key = getch().lower()
-                play_keypress_sound(key)  # <-- always trigger key sound
+                key = get_key_event(kb)
+                play_keypress_sound(key)
                 if key == sequence[seq_index]:
-                    play(beep)
+                    play(beep, block=False)
                     seq_index += 1
                 else:
                     play(buzzer)
@@ -163,17 +154,16 @@ def run_stages():
         # --- Case: normal ---
         else:
             while True:
-                if not keyboard_connected():
-                    raise RuntimeError("KeyboardDisconnected")
+                key = get_key_event(kb)
+                play_keypress_sound(key)
 
-                key = getch().lower()
                 correct_keys = correct_def
                 if isinstance(correct_keys, str):
                     correct_keys = [correct_keys]
                 correct_keys = [ck.lower() for ck in correct_keys]
 
                 if key in correct_keys:
-                    play(beep)
+                    play(beep, block=False)
                     play(stage["success"])
                     print("Correct!")
                     next_stage_id = stage.get("next_on_success")
@@ -205,7 +195,7 @@ def run_stages():
                     if str(fail_count) in fb:
                         branch_def = fb[str(fail_count)]
                         print("Special branch triggered. Waiting for input...")
-                        branch_key = getch().lower()
+                        branch_key = get_key_event(kb)
                         if branch_key in branch_def["keys"]:
                             next_stage_id = branch_def["keys"][branch_key]
                             break
@@ -229,13 +219,15 @@ def run_stages():
 
 # --- Main controller ---
 while True:
-    wait_for_keyboard()
-    # Fade in background music when keyboard appears
+    kb = wait_for_keyboard()
+
+    # Feedback + fade in music
     sfx_channel.play(keyboard_connected_sound)
-    music_channel.play(bg_music, loops=-1, fade_ms=2000)  # 2 sec fade in
-    time.sleep(1)
+    music_channel.play(bg_music, loops=-1, fade_ms=2000)
+    time.sleep(2)
+
     try:
-        run_stages()
+        run_stages(kb)
         print("Game finished!")
         break
     except RuntimeError as e:
