@@ -96,8 +96,27 @@ keypress_sounds_channel = pygame.mixer.Channel(2)
 #music_channel.play(bg_music, loops=-1)
 keyboard_connected_sound = pygame.mixer.Sound("keyboard_connected.wav")
 
-# --- Stage runner ---
+# --- Load keypress sounds separately ---
+with open("keypress.json", "r") as f:
+    kp_data = json.load(f)
 
+keypress_sounds = {
+    k.lower(): load_sound_list(v)
+    for k, v in kp_data.get("keypress_sounds", {}).items()
+}
+keypress_fallback = load_sound_list(kp_data.get("keypress_fallback", []))
+
+# Reserve a dedicated channel
+keypress_sounds_channel = pygame.mixer.Channel(2)
+def play_keypress_sound(key):
+    """Play a random sound for this key on the keypress channel."""
+    if key in keypress_sounds:
+        sound = random.choice(keypress_sounds[key])
+    else:
+        sound = random.choice(keypress_fallback)
+    keypress_sounds_channel.play(sound)
+
+# --- Stage runner ---
 def run_stages():
     current_stage_id = stage_order[0]
 
