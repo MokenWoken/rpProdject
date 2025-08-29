@@ -1,7 +1,7 @@
 {
   "keypress_sounds": {
-    "a": ["beep.wav", "beep.wav"],
-    "b": ["beep.wav"]
+    "a": ["buzzer1.wav"],
+    "b": ["buzzer1.wav"]
   },
-  "keypress_fallback": ["beep.wav", "beep.wav"]
+  "keypress_fallback": ["buzzer1.wav"]
 }
