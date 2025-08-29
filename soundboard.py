@@ -123,7 +123,7 @@ def play_keypress_sound(key):
 def getch_with_sound():
     """Capture one raw key press and play keypress sound."""
     key = getch().lower()
-    play_keypress_sound(key)
+    #play_keypress_sound(key)
     return key
 
 # --- Stage runner ---
