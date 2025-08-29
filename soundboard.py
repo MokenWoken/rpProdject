@@ -14,7 +14,7 @@ def play(sound_or_list):
     ch = sound.play()
     if ch is not None:
         while ch.get_busy():
-            pygame.time.delay(10)
+            pygame.time.delay(50)
 
 def getch():
     """Capture one raw key press."""
