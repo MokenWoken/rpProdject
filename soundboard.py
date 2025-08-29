@@ -92,6 +92,7 @@ buzzer = pygame.mixer.Sound("buzzer.wav")
 bg_music = pygame.mixer.Sound("background.wav")
 music_channel = pygame.mixer.Channel(0)
 sfx_channel = pygame.mixer.Channel(1)
+keypress_sounds_channel = pygame.mixer.Channel(2)
 #music_channel.play(bg_music, loops=-1)
 keyboard_connected_sound = pygame.mixer.Sound("keyboard_connected.wav")
 
