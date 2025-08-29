@@ -1,7 +1,7 @@
 [
   {
     "prompt": ["beep.wav"],
-    "correct": "a",
+    "correct": ["a", " ", "a"], 
     "success": ["sheepbleat.wav", "goatbleat.wav"],
     "fail": {
       "b": ["wrong_b1.wav", "wrong_b2.wav"],
