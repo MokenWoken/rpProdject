@@ -11,3 +11,17 @@ git remote add origin git@github.com:USERNAME/repo.git
 git pull origin main   # or master, depending on your branch
 
 I can easily SSH into the raspberry from windows powershell by figuring out the Raspberrys IP and then doing "@USERNAME-OF-PI IP-ADRESS"
+
+In JSON, a sequence stage looks like:
+
+"correct": [["1","2","3","4","5"]]
+
+
+A normal stage can be:
+
+"correct": "a"
+
+
+or
+
+"correct": ["a"," "]
