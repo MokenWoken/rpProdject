@@ -1,5 +1,25 @@
-import pygame, sys, termios, tty, random, json, time
+import pygame, sys, termios, tty, random, json, time, select
 from evdev import InputDevice, list_devices
+
+# Global flag to control when to accept game input
+accepting_game_input = False
+
+def check_for_keypress_sound_only():
+    """Check for keypresses and play sounds, but don't return the key."""
+    fd = sys.stdin.fileno()
+    old_settings = termios.tcgetattr(fd)
+    try:
+        tty.setraw(fd)
+        new_settings = termios.tcgetattr(fd)
+        new_settings[3] = new_settings[3] & ~(termios.ECHO | termios.ICANON)
+        termios.tcsetattr(fd, termios.TCSADRAIN, new_settings)
+        
+        # Non-blocking check for input
+        if select.select([sys.stdin], [], [], 0) == ([sys.stdin], [], []):
+            ch = sys.stdin.read(1)
+            play_keypress_sound(ch.lower())
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
 # Init mixer (tuned for Pi 1)
 pygame.mixer.pre_init(22050, -16, 1, 256)
@@ -16,10 +36,19 @@ def play(sound_or_list):
         while ch.get_busy():
             pygame.time.delay(10)
 
-def play_nonblocking(sound_or_list):
-    """Play one sound (or random from a list) without blocking."""
+def play_and_wait_with_keypress_sounds(sound_or_list):
+    """Play a sound, wait for it to finish, but allow keypress sounds during the wait."""
+    global accepting_game_input
+    accepting_game_input = False  # Don't accept game input during this sound
+    
     sound = random.choice(sound_or_list) if isinstance(sound_or_list, list) else sound_or_list
-    sound.play()
+    ch = sound.play()
+    if ch is not None:
+        while ch.get_busy():
+            check_for_keypress_sound_only()  # Allow keypress sounds but no game logic
+            pygame.time.delay(10)
+    
+    accepting_game_input = True  # Now accept game input
 
 def getch():
     """Capture one raw key press."""
@@ -124,6 +153,16 @@ def play_keypress_sound(key):
         sound = random.choice(keypress_fallback)
     keypress_sounds_channel.play(sound)
 
+def play_nonblocking(sound_or_list):
+    """Play one sound (or random from a list) without blocking."""
+    sound = random.choice(sound_or_list) if isinstance(sound_or_list, list) else sound_or_list
+    sound.play()
+
+def getch_with_keypress_sound_only():
+    """Get a keypress and play sound, but don't return the key."""
+    key = getch().lower()
+    play_keypress_sound(key)
+
 def getch_with_sound():
     """Capture one raw key press and play keypress sound."""
     key = getch().lower()
@@ -140,7 +179,7 @@ def run_stages():
             raise RuntimeError("KeyboardDisconnected")
 
         stage = stages_by_id[current_stage_id]
-        play_nonblocking(stage["prompt"])  # NON-BLOCKING prompt
+        play_and_wait_with_keypress_sounds(stage["prompt"])  # Wait for prompt, allow keypress sounds
 
         fail_counters = {k: 0 for k in stage["fail"]}
         default_fail_counter = 0
