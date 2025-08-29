@@ -1,14 +1,21 @@
 [
   {
-    "prompt": ["welcomePressB.wav"],
-    "correct": "b",
-    "success": ["successB.wav"],
-    "fail": ["wrongB1.wav", "wrongB2.wav", "wrongB3.wav"]
-  },
-  {
     "prompt": ["beep.wav"],
     "correct": "a",
-    "success": ["beep.wav"],
-    "fail": ["beep.wav"]
+    "success": ["sheepbleat.wav", "goatbleat.wav"],
+    "fail": {
+      "b": ["wrong_b1.wav", "wrong_b2.wav"],
+      "c": ["wrong_c1.wav"]
+    },
+    "fail_default": ["generic_fail1.wav", "generic_fail2.wav"]
+  },
+  {
+    "prompt": ["question.wav"],
+    "correct": "b",
+    "success": ["success.wav"],
+    "fail": {
+      "a": ["fail_a1.wav"]
+    },
+    "fail_default": ["oops1.wav", "oops2.wav"]
   }
 ]
