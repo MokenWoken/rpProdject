@@ -8,11 +8,12 @@ pygame.mixer.init()
 # --- Utility functions ---
 
 def play(sound_or_list):
-    """Play one sound (or random from a list) and block until finished."""
+    """Play one sound (or random from a list) and block until finished (ignores background music)."""
     sound = random.choice(sound_or_list) if isinstance(sound_or_list, list) else sound_or_list
-    sound.play()
-    while pygame.mixer.get_busy():
-        pygame.time.delay(50)
+    ch = sound.play()   # get the channel this sound is playing on
+    if ch is not None:
+        while ch.get_busy():   # only wait for THIS sound
+            pygame.time.delay(50)
 
 def getch():
     """Capture one raw key press."""
