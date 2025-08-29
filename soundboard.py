@@ -49,7 +49,7 @@ for s in stages_data:
 beep = pygame.mixer.Sound("beep.wav")
 buzzer = pygame.mixer.Sound("buzzer.wav")
 # Background music
-#bg_music = pygame.mixer.Sound("background.wav")
+bg_music = pygame.mixer.Sound("background.wav")
 music_channel = pygame.mixer.Channel(0)
 music_channel.play(bg_music, loops=-1)  # play forever
 
