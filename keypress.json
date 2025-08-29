@@ -1,0 +1,7 @@
+{
+  "keypress_sounds": {
+    "a": ["a_key1.wav", "a_key2.wav"],
+    "b": ["b_key1.wav"]
+  },
+  "keypress_fallback": ["default1.wav", "default2.wav"]
+}
