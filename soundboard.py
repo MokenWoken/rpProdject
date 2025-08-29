@@ -1,34 +1,10 @@
-import pygame, sys, termios, tty, random, json, time, atexit, select
+import pygame, sys, termios, tty, random, json, time
 from evdev import InputDevice, list_devices
 
 # Init mixer (tuned for Pi 1)
 pygame.mixer.pre_init(22050, -16, 1, 256)
 pygame.init()
 pygame.mixer.init()
-
-# --- Terminal management ---
-original_terminal_settings = None
-
-def setup_terminal():
-    """Set terminal to raw mode and save original settings."""
-    global original_terminal_settings
-    if original_terminal_settings is None:
-        fd = sys.stdin.fileno()
-        original_terminal_settings = termios.tcgetattr(fd)
-        tty.setraw(fd)
-        print("DEBUG: Terminal set to raw mode")
-
-def restore_terminal():
-    """Restore terminal to original settings."""
-    global original_terminal_settings
-    if original_terminal_settings is not None:
-        fd = sys.stdin.fileno()
-        termios.tcsetattr(fd, termios.TCSADRAIN, original_terminal_settings)
-        original_terminal_settings = None
-        print("DEBUG: Terminal restored")
-
-# Register cleanup function
-atexit.register(restore_terminal)
 
 # --- Utility functions ---
 
@@ -40,31 +16,16 @@ def play(sound_or_list):
         while ch.get_busy():
             pygame.time.delay(10)
 
-def getch_nonblocking():
-    """Get a character if available, return None if no input available."""
-    # Make sure terminal is in raw mode
-    setup_terminal()
-    
-    # Check if input is available
-    if select.select([sys.stdin], [], [], 0) == ([], [], []):
-        return None  # No input available
-    
+def getch():
+    """Capture one raw key press."""
+    fd = sys.stdin.fileno()
+    old_settings = termios.tcgetattr(fd)
     try:
+        tty.setraw(fd)
         ch = sys.stdin.read(1)
-        print(f"DEBUG: getch_nonblocking() captured: '{ch}' (ord: {ord(ch)})")
-        return ch
-    except KeyboardInterrupt:
-        print("DEBUG: KeyboardInterrupt in getch_nonblocking()")
-        raise
-
-def wait_for_keypress():
-    """Wait for a keypress, checking constantly even while sounds play."""
-    print("DEBUG: Waiting for keypress (non-blocking)...")
-    while True:
-        key = getch_nonblocking()
-        if key is not None:
-            return key.lower()
-        pygame.time.delay(10)  # Small delay to prevent busy waiting
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+    return ch
 
 def load_sound_list(filenames):
     """Load .wav files into pygame Sound objects."""
@@ -132,6 +93,7 @@ bg_music = pygame.mixer.Sound("background.wav")
 music_channel = pygame.mixer.Channel(0)
 sfx_channel = pygame.mixer.Channel(1)
 keypress_sounds_channel = pygame.mixer.Channel(2)
+#music_channel.play(bg_music, loops=-1)
 keyboard_connected_sound = pygame.mixer.Sound("keyboard_connected.wav")
 
 # --- Load keypress sounds separately ---
@@ -144,9 +106,10 @@ keypress_sounds = {
 }
 keypress_fallback = load_sound_list(kp_data.get("keypress_fallback", []))
 
+# Reserve a dedicated channel
+keypress_sounds_channel = pygame.mixer.Channel(2)
 def play_keypress_sound(key):
-    """Play a random sound for this key on the keypress channel (non-blocking)."""
-    print(f"DEBUG: Playing keypress sound for '{key}'")
+    """Play a random sound for this key on the keypress channel."""
     if key in keypress_sounds:
         sound = random.choice(keypress_sounds[key])
     else:
@@ -155,7 +118,6 @@ def play_keypress_sound(key):
 
 # --- Stage runner ---
 def run_stages():
-    print("DEBUG: Starting run_stages()")
     current_stage_id = stage_order[0]
 
     while current_stage_id:
@@ -164,7 +126,6 @@ def run_stages():
             raise RuntimeError("KeyboardDisconnected")
 
         stage = stages_by_id[current_stage_id]
-        print(f"DEBUG: Running stage {current_stage_id}")
         play(stage["prompt"])
 
         fail_counters = {k: 0 for k in stage["fail"]}
@@ -175,22 +136,18 @@ def run_stages():
 
         # --- Case: sequence of keys ---
         if isinstance(correct_def, list) and len(correct_def) > 0 and isinstance(correct_def[0], list):
-            print("DEBUG: Sequence mode")
             sequence = [k.lower() for k in correct_def[0]]
             seq_index = 0
             while seq_index < len(sequence):
                 if not keyboard_connected():
                     raise RuntimeError("KeyboardDisconnected")
-                
-                print(f"DEBUG: Waiting for key {seq_index+1}/{len(sequence)}")
-                key = wait_for_keypress()
-                play_keypress_sound(key)
-                
+                key = getch().lower()
+                play_keypress_sound(key)  # <-- always trigger key sound
                 if key == sequence[seq_index]:
-                    sfx_channel.play(beep)  # Non-blocking beep
+                    play(beep)
                     seq_index += 1
                 else:
-                    sfx_channel.play(buzzer)  # Non-blocking buzzer
+                    play(buzzer)
                     if stage["fail_default"]:
                         idx = default_fail_counter
                         sounds = stage["fail_default"]
@@ -205,22 +162,18 @@ def run_stages():
 
         # --- Case: normal ---
         else:
-            print("DEBUG: Normal mode")
             while True:
                 if not keyboard_connected():
                     raise RuntimeError("KeyboardDisconnected")
 
-                print("DEBUG: Waiting for keypress...")
-                key = wait_for_keypress()
-                play_keypress_sound(key)
-                
+                key = getch().lower()
                 correct_keys = correct_def
                 if isinstance(correct_keys, str):
                     correct_keys = [correct_keys]
                 correct_keys = [ck.lower() for ck in correct_keys]
 
                 if key in correct_keys:
-                    sfx_channel.play(beep)  # Non-blocking beep
+                    play(beep)
                     play(stage["success"])
                     print("Correct!")
                     next_stage_id = stage.get("next_on_success")
@@ -228,7 +181,7 @@ def run_stages():
                 else:
                     fail_count += 1
                     if key in stage["fail"]:
-                        sfx_channel.play(buzzer)  # Non-blocking buzzer
+                        play(buzzer)
                         sounds = stage["fail"][key]
                         idx = fail_counters[key]
                         play(sounds[idx])
@@ -236,7 +189,7 @@ def run_stages():
                             fail_counters[key] += 1
                         print(f"Wrong key '{key}', try again...")
                     elif stage["fail_default"]:
-                        sfx_channel.play(buzzer)  # Non-blocking buzzer
+                        play(buzzer)
                         sounds = stage["fail_default"]
                         idx = default_fail_counter
                         play(sounds[idx])
@@ -244,7 +197,7 @@ def run_stages():
                             default_fail_counter += 1
                         print(f"Unexpected key '{key}', fallback fail triggered.")
                     else:
-                        sfx_channel.play(buzzer)  # Non-blocking buzzer
+                        play(buzzer)
                         print(f"Unexpected key '{key}', no fail sounds defined.")
 
                     # --- check fail_branches ---
@@ -252,7 +205,7 @@ def run_stages():
                     if str(fail_count) in fb:
                         branch_def = fb[str(fail_count)]
                         print("Special branch triggered. Waiting for input...")
-                        branch_key = wait_for_keypress()
+                        branch_key = getch().lower()
                         if branch_key in branch_def["keys"]:
                             next_stage_id = branch_def["keys"][branch_key]
                             break
@@ -275,29 +228,20 @@ def run_stages():
         current_stage_id = next_stage_id
 
 # --- Main controller ---
-try:
-    while True:
-        wait_for_keyboard()
-        # Fade in background music when keyboard appears
-        sfx_channel.play(keyboard_connected_sound)
-        music_channel.play(bg_music, loops=-1, fade_ms=2000)  # 2 sec fade in
-        time.sleep(2)
-        
-        try:
-            run_stages()
-            print("Game finished!")
-            break
-        except RuntimeError as e:
-            if str(e) == "KeyboardDisconnected":
-                print("Keyboard disconnected! Restarting from stage 1...")
-                music_channel.fadeout(2000)
-                continue
-            else:
-                raise
-        except KeyboardInterrupt:
-            print("Exiting...")
-            break
-            
-finally:
-    restore_terminal()
-    pygame.quit()
+while True:
+    wait_for_keyboard()
+    # Fade in background music when keyboard appears
+    sfx_channel.play(keyboard_connected_sound)
+    music_channel.play(bg_music, loops=-1, fade_ms=2000)  # 2 sec fade in
+    time.sleep(1)
+    try:
+        run_stages()
+        print("Game finished!")
+        break
+    except RuntimeError as e:
+        if str(e) == "KeyboardDisconnected":
+            print("Keyboard disconnected! Restarting from stage 1...")
+            music_channel.fadeout(2000)
+            continue
+        else:
+            raise
