@@ -11,27 +11,34 @@ game_input_enabled = False
 key_queue = queue.Queue()
 
 # --- Utility functions ---
-def play(sound_or_list, block=True):
-    """Play one sound (or random from list)."""
+def play(sound_or_list, block=True, channel=None):
+    """Play one sound (or random from list) on a given channel."""
     sound = random.choice(sound_or_list) if isinstance(sound_or_list, list) else sound_or_list
-    ch = sound.play()
-    if block and ch is not None:
-        while ch.get_busy():
-            pygame.time.delay(10)
+    if channel:
+        channel.play(sound)
+        if block:
+            while channel.get_busy():
+                pygame.time.delay(10)
+    else:
+        ch = sound.play()
+        if block and ch is not None:
+            while ch.get_busy():
+                pygame.time.delay(10)
 
 def play_blocking_stage_sound(sound_or_list):
-    """Play a stage sound (prompt/success/fail).
-       During this sound, only keypress sounds are allowed.
-       Flush queue after it finishes so old keys don't count."""
+    """Play a stage sound (prompt/success/fail) on the stage channel.
+       During playback only keypress sounds are allowed."""
     global game_input_enabled
     game_input_enabled = False
-    play(sound_or_list, block=True)
-    # flush queue so buffered keypresses during the sound are discarded
+    play(sound_or_list, block=True, channel=stage_channel)
+
+    # flush queue of any keys pressed during playback
     while not key_queue.empty():
         try:
             key_queue.get_nowait()
         except:
             break
+
     game_input_enabled = True
 
 def getch():
@@ -108,6 +115,7 @@ buzzer = pygame.mixer.Sound("buzzer.wav")
 bg_music = pygame.mixer.Sound("background.wav")
 keyboard_connected_sound = pygame.mixer.Sound("keyboard_connected.wav")
 
+stage_channel = pygame.mixer.Channel(3)
 music_channel = pygame.mixer.Channel(0)
 sfx_channel = pygame.mixer.Channel(1)
 keypress_sounds_channel = pygame.mixer.Channel(2)
