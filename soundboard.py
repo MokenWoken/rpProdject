@@ -1,4 +1,4 @@
-import pygame, sys, termios, tty, random, json, time
+import pygame, sys, termios, tty, random, json, time, threading, queue
 from evdev import InputDevice, list_devices, ecodes
 
 # Init mixer (tuned for Pi 1)
@@ -7,23 +7,23 @@ pygame.init()
 pygame.mixer.init()
 
 # --- Globals ---
-game_input_enabled = False   # Switch for logic vs. typing mode
+game_input_enabled = False
+key_queue = queue.Queue()
 
 # --- Utility functions ---
-def play(sound_or_list):
-    """Play one sound (or random from a list) and block until finished."""
+def play(sound_or_list, block=True):
+    """Play one sound (or random from list)."""
     sound = random.choice(sound_or_list) if isinstance(sound_or_list, list) else sound_or_list
     ch = sound.play()
-    if ch is not None:
+    if block and ch is not None:
         while ch.get_busy():
             pygame.time.delay(10)
 
 def play_blocking_stage_sound(sound_or_list):
-    """Play a stage sound (prompt/success/fail).
-       During this sound, only keypress sounds are allowed."""
+    """Play stage sound; during this only keypress sounds play."""
     global game_input_enabled
     game_input_enabled = False
-    play(sound_or_list)   # wait until finished
+    play(sound_or_list, block=True)
     game_input_enabled = True
 
 def getch():
@@ -37,15 +37,18 @@ def getch():
         termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
     return ch
 
-def wait_for_key():
-    """Block until a key is pressed that counts for game logic."""
-    global game_input_enabled
+def key_listener():
+    """Background thread to constantly read keys with getch()."""
     while True:
         key = getch().lower()
         if game_input_enabled:
-            return key
+            key_queue.put(key)  # feed into game logic
         else:
-            play_keypress_sound(key)  # typing sound only
+            play_keypress_sound(key)  # just play typing sounds
+
+def wait_for_key():
+    """Return next key that counts for game logic."""
+    return key_queue.get(block=True)
 
 def load_sound_list(filenames):
     return [pygame.mixer.Sound(f) for f in filenames]
@@ -70,7 +73,7 @@ def wait_for_keyboard():
         time.sleep(1)
     print("Keyboard detected!")
 
-# --- Load stage data ---
+# --- Load stages ---
 with open("stages.json", "r") as f:
     stages_data = json.load(f)
 
@@ -124,7 +127,7 @@ def run_stages():
             raise RuntimeError("KeyboardDisconnected")
 
         stage = stages_by_id[current_stage_id]
-        play_blocking_stage_sound(stage["prompt"])  # disable logic during prompt
+        play_blocking_stage_sound(stage["prompt"])  # during prompt, only keypress sounds
 
         fail_counters = {k: 0 for k in stage["fail"]}
         default_fail_counter = 0
@@ -132,82 +135,55 @@ def run_stages():
         next_stage_id = None
         correct_def = stage["correct"]
 
-        # --- Case: sequence ---
-        if isinstance(correct_def, list) and len(correct_def)>0 and isinstance(correct_def[0], list):
-            sequence = [k.lower() for k in correct_def[0]]
-            seq_index = 0
-            while seq_index < len(sequence):
-                if not keyboard_connected():
-                    raise RuntimeError("KeyboardDisconnected")
-                key = wait_for_key()
-                if key == sequence[seq_index]:
-                    play(beep, block=False)
-                    seq_index += 1
+        # --- Case: normal stage ---
+        while True:
+            key = wait_for_key()
+
+            correct_keys = correct_def
+            if isinstance(correct_keys, str): correct_keys = [correct_keys]
+            correct_keys = [ck.lower() for ck in correct_keys]
+
+            if key in correct_keys:
+                play(beep, block=False)
+                play_blocking_stage_sound(stage["success"])
+                print("Correct!")
+                next_stage_id = stage.get("next_on_success")
+                break
+            else:
+                fail_count += 1
+                if key in stage["fail"]:
+                    play(buzzer)
+                    sounds = stage["fail"][key]
+                    idx = fail_counters[key]
+                    play_blocking_stage_sound(sounds[idx])
+                    if idx < len(sounds)-1: fail_counters[key]+=1
+                    print(f"Wrong key '{key}', try again...")
+                elif stage["fail_default"]:
+                    play(buzzer)
+                    sounds = stage["fail_default"]
+                    idx = default_fail_counter
+                    play_blocking_stage_sound(sounds[idx])
+                    if idx < len(sounds)-1: default_fail_counter+=1
+                    print(f"Unexpected key '{key}', fallback fail triggered.")
                 else:
                     play(buzzer)
-                    if stage["fail_default"]:
-                        idx = default_fail_counter
-                        sounds = stage["fail_default"]
-                        play_blocking_stage_sound(sounds[idx])
-                        if idx < len(sounds)-1: default_fail_counter += 1
-                    print("Wrong key in sequence, restarting...")
-                    seq_index = 0
-            play_blocking_stage_sound(stage["success"])
-            print("Sequence completed!")
-            next_stage_id = stage.get("next_on_success")
+                    print(f"Unexpected key '{key}', no fail sounds defined.")
 
-        # --- Case: normal ---
-        else:
-            while True:
-                if not keyboard_connected():
-                    raise RuntimeError("KeyboardDisconnected")
-                key = wait_for_key()
-                correct_keys = correct_def
-                if isinstance(correct_keys, str): correct_keys = [correct_keys]
-                correct_keys = [ck.lower() for ck in correct_keys]
-
-                if key in correct_keys:
-                    play(beep, block=False)
-                    play_blocking_stage_sound(stage["success"])
-                    print("Correct!")
-                    next_stage_id = stage.get("next_on_success")
-                    break
-                else:
-                    fail_count += 1
-                    if key in stage["fail"]:
-                        play(buzzer)
-                        sounds = stage["fail"][key]
-                        idx = fail_counters[key]
-                        play_blocking_stage_sound(sounds[idx])
-                        if idx < len(sounds)-1: fail_counters[key]+=1
-                        print(f"Wrong key '{key}', try again...")
-                    elif stage["fail_default"]:
-                        play(buzzer)
-                        sounds = stage["fail_default"]
-                        idx = default_fail_counter
-                        play_blocking_stage_sound(sounds[idx])
-                        if idx < len(sounds)-1: default_fail_counter+=1
-                        print(f"Unexpected key '{key}', fallback fail triggered.")
-                    else:
-                        play(buzzer)
-                        print(f"Unexpected key '{key}', no fail sounds defined.")
-
-                    fb = stage.get("fail_branches", {})
-                    if str(fail_count) in fb:
-                        branch_def = fb[str(fail_count)]
-                        print("Special branch triggered. Waiting for input...")
-                        branch_key = wait_for_key()
-                        if branch_key in branch_def["keys"]:
-                            next_stage_id = branch_def["keys"][branch_key]
-                            break
-                        else:
-                            print(f"No branch for '{branch_key}', continuing fails...")
-
-                    if stage.get("next_on_fail"):
-                        next_stage_id = stage["next_on_fail"]
+                fb = stage.get("fail_branches", {})
+                if str(fail_count) in fb:
+                    branch_def = fb[str(fail_count)]
+                    print("Special branch triggered. Waiting for input...")
+                    branch_key = wait_for_key()
+                    if branch_key in branch_def["keys"]:
+                        next_stage_id = branch_def["keys"][branch_key]
                         break
+                    else:
+                        print(f"No branch for '{branch_key}', continuing fails...")
 
-        # --- Next stage ---
+                if stage.get("next_on_fail"):
+                    next_stage_id = stage["next_on_fail"]
+                    break
+
         if not next_stage_id:
             idx = stage_order.index(stage["id"])
             if idx+1 < len(stage_order):
@@ -218,19 +194,14 @@ def run_stages():
         current_stage_id = next_stage_id
 
 # --- Main controller ---
-while True:
+if __name__ == "__main__":
     wait_for_keyboard()
     sfx_channel.play(keyboard_connected_sound)
     music_channel.play(bg_music, loops=-1, fade_ms=2000)
     time.sleep(1)
-    try:
-        run_stages()
-        print("Game finished!")
-        break
-    except RuntimeError as e:
-        if str(e) == "KeyboardDisconnected":
-            print("Keyboard disconnected! Restarting...")
-            music_channel.fadeout(2000)
-            continue
-        else:
-            raise
+
+    # start background listener thread
+    threading.Thread(target=key_listener, daemon=True).start()
+
+    run_stages()
+    print("Game finished!")
