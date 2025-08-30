@@ -20,10 +20,18 @@ def play(sound_or_list, block=True):
             pygame.time.delay(10)
 
 def play_blocking_stage_sound(sound_or_list):
-    """Play stage sound; during this only keypress sounds play."""
+    """Play a stage sound (prompt/success/fail).
+       During this sound, only keypress sounds are allowed.
+       Flush queue after it finishes so old keys don't count."""
     global game_input_enabled
     game_input_enabled = False
     play(sound_or_list, block=True)
+    # flush queue so buffered keypresses during the sound are discarded
+    while not key_queue.empty():
+        try:
+            key_queue.get_nowait()
+        except:
+            break
     game_input_enabled = True
 
 def getch():
