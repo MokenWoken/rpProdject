@@ -3,5 +3,5 @@
     "a": ["buzzer1.wav"],
     "b": ["buzzer1.wav"]
   },
-  "keypress_fallback": ["buzzer1.wav"]
+  "keypress_fallback": ["beep1.wav", "beep2.wav", "beep3.wav", "beep4.wav", "beep5.wav", "beep6.wav", "beep7.wav", "beep8.wav",  ]
 }
