@@ -1,7 +1,7 @@
 [
   {
     "id": "stage1",
-    "prompt": ["beginning1.wav"],
+    "prompt": ["beginning2.wav"],
     "correct": " ",
     "success": ["spacebar_success_goto_W.wav"],
     "fail": {
