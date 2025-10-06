@@ -167,6 +167,7 @@ def run_stages():
                     raise RuntimeError("KeyboardDisconnected")
 
                 key = getch().lower()
+                play_keypress_sound(key)
                 correct_keys = correct_def
                 if isinstance(correct_keys, str):
                     correct_keys = [correct_keys]
@@ -206,6 +207,7 @@ def run_stages():
                         branch_def = fb[str(fail_count)]
                         print("Special branch triggered. Waiting for input...")
                         branch_key = getch().lower()
+                        play_keypress_sound(key)
                         if branch_key in branch_def["keys"]:
                             next_stage_id = branch_def["keys"][branch_key]
                             break
